@@ -7,10 +7,12 @@ $vnetAddressPrefix = "10.0.0.0/16"
 $subnetAddressPrefix = "10.0.0.0/24"
 $publicIpAddressName = "linuxboxpip"
 $sshKeyName = "linuxboxsshkey"
-$sshKeyPublicKey = Get-Content "~/.ssh/id_rsa.pub" 
+$sshKeyPublicKey = Get-Content "~/.ssh/id_ed25519.pub"
 $vmName = "matebox"
 $vmImage = "Ubuntu2204"
 $vmSize = "Standard_B1s"
+# adding unique dns label
+$dnsPrefix = "matebox$((Get-Random -Maximum 9999))"
 
 Write-Host "Creating a resource group $resourceGroupName ..."
 New-AzResourceGroup -Name $resourceGroupName -Location $location
@@ -21,3 +23,20 @@ $nsgRuleHTTP = New-AzNetworkSecurityRuleConfig -Name HTTP  -Protocol Tcp -Direct
 New-AzNetworkSecurityGroup -Name $networkSecurityGroupName -ResourceGroupName $resourceGroupName -Location $location -SecurityRules $nsgRuleSSH, $nsgRuleHTTP
 
 # ↓↓↓ Write your code here ↓↓↓
+$subnet  = New-AzVirtualNetworkSubnetConfig -Name $subnetName  -AddressPrefix $subnetAddressPrefix
+$Vnet = New-AzVirtualNetwork -Name $virtualNetworkName -ResourceGroupName $resourceGroupName -Location $location -AddressPrefix $vnetAddressPrefix -Subnet $subnet
+$publicIp = New-AzPublicIpAddress -Name $publicIpAddressName -ResourceGroupName $resourceGroupName -AllocationMethod Static -DomainNameLabel $dnsPrefix -Location $location
+New-AzSshKey -ResourceGroupName $resourceGroupName -Name $sshKeyName -PublicKey $sshKeyPublicKey
+
+# Create VM
+New-AzVm `
+  -ResourceGroupName $resourceGroupName `
+  -Location $location `
+  -Name $vmName `
+  -Image $vmImage `
+  -Size $vmSize `
+  -VirtualNetworkName $virtualNetworkName `
+  -SubnetName $subnetName `
+  -SecurityGroupName $networkSecurityGroupName `
+  -PublicIpAddressName $publicIpAddressName `
+  -SshKeyName $sshKeyName
